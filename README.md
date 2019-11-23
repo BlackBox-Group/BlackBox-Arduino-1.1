@@ -1,6 +1,7 @@
 # Arduino-часть проекта BlackBox
 
-## Схема:
+## Схема
+
     MOSI  -  ICSP-4
     MISO  -  ICSP-1   ->   MISO от SD карты подключён через резистор в ~360 Ом
     SCK   -  ICSP-3
@@ -13,13 +14,13 @@
       SS  -  10
       SDA -  9
 
+## Справка по файлам
 
-## Справка по файлам:
     Основной файл:
-      BlackBox1.1.ino      
+      BlackBox1.1.ino
 
     Мои врапперы для упращения работы с AES, NUID и менеджментом файлов:
-      aes_functions.ino    
+      aes_functions.ino
       nuid_functions.ino
       sdfile_functions.ino
 
@@ -32,6 +33,8 @@
     Мелкие вспомогательные функции:
       helper_functions.ino
 
+    Поведение системы:
+        logic_functions.ino
 
 Создано BlackBox Group
                                 23.11.19

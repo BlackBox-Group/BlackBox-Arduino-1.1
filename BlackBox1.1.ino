@@ -25,6 +25,8 @@
         debug_functions
       Мелкие вспомогательные функции:
         helper_functions
+      Поведение системы:
+        logic_functions
 
      
     Создано BlackBox Group
@@ -45,11 +47,68 @@
 const RFID rfid(SS_RFID, RST_RFID);
 
 void setup() {
-  // put your setup code here, to run once:
+  // Инициализация встроенного светодиода
+  pinMode(LED_BUILTIN, OUTPUT);
 
+  // Инициализация Serial
+  Serial.begin(9600);
+  while (!Serial) {
+    ; // Ждём, пока подключатся по Serial порту
+  }
+
+  // Запуск SPI и инициализация RFID
+  SPI.begin();
+  rfid.init();
+
+  // Инициализация SD карты
+  if (!SD.begin(CS_SD)) {
+    Serial.println("# SD card init failed.");
+    // Останавливаем выполнение программы
+    while (1);
+  }
+
+  if (!SD.exists("cards.txt")) {
+    SD.open("cards.txt", FILE_WRITE).close();
+  }
+  if (!SD.exists("usr/")) {
+    SD.mkdir("usr");
+  }
+
+  Serial.println("# OK");
 }
 
-void loop() {
-  // put your main code here, to run repeatedly:
+// Переменная для хранения снапшотов времени
+unsigned long time_now;
 
+// Структура, хранящая в себе текущее состояние системы
+// Нужна для сохранения состояния между циклами loop
+struct State {
+  bool usernameRequired = false;
+  bool masterRequired   = false;
+  bool userCreation     = false;
+  bool loginProcess     = false;
+} state;
+
+void loop() {
+  // Работа с событиями по времени
+  if (millis() - time_now > 1000) {   // Прошла секунда
+    time_now = millis();
+
+    digitalWrite(LED_BUILTIN, HIGH);
+    delay(100);
+    digitalWrite(LED_BUILTIN, LOW);
+  }
+
+  // Если доступны байты к чтению по Serial
+  if (Serial.available()) {
+    String command = Serial.readStringUntil('\n');
+    
+    // Все сообщения, которые начинаются с '#', являются комментариями и их нужно игнорировать
+    if (command.startsWith("#")) {
+      return;
+    }
+
+    // В ином случае, отправить команду на обработку в логический модуль
+    analyzeCommand(command);
+  }
 }
