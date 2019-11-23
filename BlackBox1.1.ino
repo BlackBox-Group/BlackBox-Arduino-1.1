@@ -80,13 +80,25 @@ void setup() {
 // Переменная для хранения снапшотов времени
 unsigned long time_now;
 
+// Константы
+#define RFID_TIMEOUT_SECONDS 10
+
 // Структура, хранящая в себе текущее состояние системы
 // Нужна для сохранения состояния между циклами loop
 struct State {
-  bool usernameRequired = false;
-  bool masterRequired   = false;
   bool userCreation     = false;
-  bool loginProcess     = false;
+  
+  bool rfidRequired     = false;
+  bool rfidTimeout      = false;
+  bool rfidSuccess      = false;
+
+  bool masterRequired   = false;
+  bool gotMaster        = false;
+  String master         = "";
+
+  uint8_t* key          = NULL;
+
+  unsigned long timeStamp_rfid = 0;
 } state;
 
 void loop() {
@@ -111,4 +123,6 @@ void loop() {
     // В ином случае, отправить команду на обработку в логический модуль
     analyzeCommand(command);
   }
+
+  processState();
 }
