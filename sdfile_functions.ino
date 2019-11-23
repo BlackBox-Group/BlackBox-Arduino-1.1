@@ -56,6 +56,7 @@ void rm(File dir, String tempPath) {
     } 
     else {
       // break out of recursion
+      entry.close();
       return;
     }
   }
