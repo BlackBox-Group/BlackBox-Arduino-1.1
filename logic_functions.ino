@@ -78,13 +78,30 @@ void processState() {
     digitalWrite(LED_BUILTIN, LOW);
   }
 
+  // Создание пользователя
   if (state.userCreation) {
     if (state.rfidTimeout) {
       state.userCreation = false;
     }
     else if (state.rfidSuccess) {
-      // RFID получен, нужно запросить master-пароль
-      askForMaster();
+      // RFID получен, нужно проверить, если такая карта есть и запросить master-пароль
+      File f = openFile("cards.txt", FILE_READ);
+      String currNuid = nuidToStr(rfid.serNum), savedNuid;
+      
+      do {
+        savedNuid = fileReadUntil(&f, '\n');
+      }
+      while (savedNuid != "" && currNuid != savedNuid);
+
+      f.close();
+      
+      if (currNuid == savedNuid) {
+        Serial.println("cardexists");
+        state.userCreation = false;
+      }
+      else {
+        askForMaster();
+      }
     }
     else if (state.gotMaster) {
       createUser(rfid.serNum, &state.master);
@@ -101,8 +118,11 @@ void processState() {
 
 void createUser(uint8_t* nuid, String* m) {
   state.key = generateKey(nuid, m);
-
   Serial.print("# "); dumpBufferHex(state.key, 32); Serial.println();
+
+  File f = openFile("cards.txt", FILE_WRITE);
+  f.print(nuidToStr(nuid) + "\n");
+  f.close();
   Serial.println("usercreated");
 
   delete state.key;

@@ -61,3 +61,14 @@ void rm(File dir, String tempPath) {
     }
   }
 }
+
+// Открыть файл и автоматически предупредить, если произошла ошибка
+File openFile(String name, int mode) {
+  File f = SD.open(name, mode);
+  if (!f) {
+    Serial.println("# Failed to open " + name);
+    while (1);
+  }
+
+  return f;
+}
