@@ -99,6 +99,12 @@ void analyzeCommand(String command) {
     state.userLogin = true;
   }
 
+  else if (command.startsWith("password")) {
+    initPutRFID();
+    state.passwordReveal = true;
+    state.revealPassName = command.substring(command.indexOf(' ') + 1);
+  }
+
   // Команда не опознана / не принимается системой в текущем состоянии
   else {
     Serial.println("# Command unknown / can't be accepted now");
@@ -259,6 +265,52 @@ void processState() {
         f.close();
         state.authState = STOPPED;
         state.userLogin = false;
+    }
+  }
+
+  if (state.passwordReveal) {
+    AuthState as = authorizeUser();
+    switch (as) {
+      case IN_PROGRESS:
+        break;
+      case FAILED:
+        Serial.println("passwordfail");
+        state.passwordReveal = false;
+        state.authState = STOPPED;
+        break;
+      case SUCCESS:
+        File f = openFile("usr/" + state.userFileName, FILE_READ);
+        String line;
+        // "Перемотка" на нужный участок
+        do {
+          line = fileReadUntil(&f, '\n');
+        }
+        while (line != "hservice");
+
+        while (f.available()) {
+          String sname = fileReadUntil(&f, ':');
+          String surl = fileReadUntil(&f, '\n');
+          String password = fileReadUntil(&f, '\n');
+
+          Serial.println("# " + sname + " " + state.revealPassName);
+          if (sname == state.revealPassName) {
+            f.close();
+
+            Serial.println("password " + password);
+                  
+            state.authState = STOPPED;
+            state.passwordReveal = false;
+            break;
+          }
+        }
+        if (state.authState != STOPPED) {
+          f.close();
+          state.authState = STOPPED;
+          state.passwordReveal = false;
+  
+          Serial.println("passwordfail");
+          break;
+        }
     }
   }
 

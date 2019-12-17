@@ -120,6 +120,9 @@ struct State {
   String servicePass    = "";
 
   bool userLogin        = false;
+  
+  bool passwordReveal   = false;
+  String revealPassName = "";
 
   uint8_t* key          = NULL;
 
