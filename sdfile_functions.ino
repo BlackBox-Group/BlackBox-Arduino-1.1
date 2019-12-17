@@ -72,3 +72,59 @@ File openFile(String name, int mode) {
 
   return f;
 }
+
+// Прошерстить папку usr/ и сказать, какой следующее имя файла пользователя можно использовать для создания
+String getAvailableUser() {
+  File directory = openFile("usr/", FILE_READ);
+  int maxN = 0;
+  while (true) {
+    File f = directory.openNextFile();
+    if (!f) {
+      break;
+    }
+
+    if (!f.isDirectory()) {
+      String n = f.name();
+      if (n.endsWith(".USR")) {
+        // 0 - если перевести не удалось
+        int num = n.substring(0, n.indexOf('.')).toInt();
+        maxN = max(num, maxN);
+      }
+    }
+  }
+
+  directory.close();
+
+  return String(maxN + 1) + ".USR";
+}
+
+// Нахождение USR файла пользователя по паролю и NUID. Пустая строка, если не найден
+String findUser(String nuid, String master) {
+  File directory = openFile("usr/", FILE_READ);
+  int maxN = 0;
+  while (true) {
+    File f = directory.openNextFile();
+    if (!f) {
+      break;
+    }
+
+    if (!f.isDirectory()) {
+      String n = f.name();
+      if (n.endsWith(".USR")) {
+        // Пробуем читать и смотрим на совпадение
+        String file_nuid = fileReadUntil(&f, '\n');
+        if (nuid == file_nuid) {
+          String file_master = fileReadUntil(&f, '\n');
+          if (master == file_master) {
+            directory.close();
+            f.close();
+            return n;
+          }
+        }
+      }
+    }
+  }
+
+  directory.close();
+  return "";
+}

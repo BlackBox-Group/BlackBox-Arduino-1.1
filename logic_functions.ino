@@ -11,6 +11,12 @@ void askForMaster() {
   state.masterRequired = true;
 }
 
+// Запросить мастер-пароль
+void askForUsername() {
+  Serial.println("username?");
+  state.usernameRequired = true;
+}
+
 void analyzeCommand(String command) {
   
   // Пинг
@@ -47,6 +53,45 @@ void analyzeCommand(String command) {
       state.gotMaster = true;
       state.masterRequired = false;
     }
+  }
+
+  else if (command.startsWith("username") && state.usernameRequired) {
+    state.username = command.substring(command.indexOf(' ') + 1);
+
+    // TODO: Проверка
+    state.gotUsername = true;
+    state.usernameRequired = false;
+  }
+
+  else if (command == "addService") {
+    Serial.println("# Okay1");
+    initPutRFID();
+    state.serviceAddition = true;
+    /*AuthState as = authorizeUser();
+    switch (as) {
+      case IN_PROGRESS:
+        break;
+      case FAILED:
+        Serial.println("servicefail");
+        break;
+      case SUCCESS:
+        Serial.println("service?");
+        state.serviceAddition = true;
+    }*/
+  }
+
+  else if (command.startsWith("service") && state.serviceAuthed) {
+    state.serviceName = command.substring(command.indexOf(' ') + 1, command.lastIndexOf(' '));
+    state.servicePass = command.substring(command.lastIndexOf(' ') + 1);
+
+    Serial.println("# Writing to " + state.userFileName);
+
+    File f = openFile("usr/" + state.userFileName, FILE_WRITE);
+    f.print(state.serviceName + "\n");
+    f.print(state.servicePass + "\n");
+    f.close();
+    
+    state.serviceAuthed = false;
   }
 
   // Команда не опознана / не принимается системой в текущем состоянии
@@ -100,8 +145,13 @@ void processState() {
         state.userCreation = false;
       }
       else {
-        askForMaster();
+        askForUsername();
+//        askForMaster();
       }
+    }
+    else if (state.gotUsername) {
+      Serial.println("# " + state.username);
+      askForMaster();
     }
     else if (state.gotMaster) {
       createUser(rfid.serNum, &state.master);
@@ -110,20 +160,115 @@ void processState() {
     }
   }
 
+  // Общая авторизация, используя NUID + Master
+  if (state.authState == IN_PROGRESS) {
+//    if (millis() % 1000 == 0) Serial.println("# Okay3");
+    if (state.rfidTimeout) {
+      Serial.println("# Okay4");
+      state.authState = FAILED;
+    }
+    else if (state.rfidSuccess) {
+      Serial.println("# Okay5");
+      // RFID получен, нужно проверить, если такая карта есть и запросить master-пароль
+
+      File f = openFile("cards.txt", FILE_READ);
+      String currNuid = nuidToStr(rfid.serNum), savedNuid;
+      
+      do {
+        savedNuid = fileReadUntil(&f, '\n');
+      }
+      while (savedNuid != "" && currNuid != savedNuid);
+      f.close();
+
+      if (currNuid == savedNuid) {
+        if (state.timeFromLastLogin != -1 && state.lastNuidLogged == currNuid) {
+          Serial.println("# User has logged in before");
+          state.timeFromLastLogin = 0;
+          state.authState = SUCCESS;
+        }
+        
+        else askForMaster();
+      }
+      else {
+        Serial.println("nosuchcard");
+        state.authState = FAILED;
+      }
+    }
+    else if (state.gotMaster) {
+      // Данные готовы для обработки
+      state.authState = DATA_COLLECTED;
+    }
+  }
+
+  if (state.serviceAddition) {
+    AuthState as = authorizeUser();
+    switch (as) {
+      case IN_PROGRESS:
+//        Serial.println("# Okay2");
+        break;
+      case FAILED:
+        Serial.println("servicefail");
+        state.serviceAddition = false;
+        state.authState = STOPPED;
+        break;
+      case SUCCESS:
+        Serial.println("service?");
+        state.serviceAuthed = true;
+        state.authState = STOPPED;
+        state.serviceAddition = false;
+    }
+  }
+
   // Обработка одно-цикленных переменных (эти флаги должны быть истинными не более одного цикла)
   state.rfidTimeout = false;
   state.rfidSuccess = false;
   state.gotMaster = false;
+  state.gotUsername = false;
 }
 
+// Общая авторизация пользователя через NUID и мастер пароль. Может возвращать IN_PROGRESS, SUCCESS и FAILED.
+int8_t authorizeUser() {
+  // Запускаем процесс, если он был остановлен
+  if (state.authState == STOPPED) state.authState = IN_PROGRESS;
+  else if (state.authState == DATA_COLLECTED) {
+    // Нужно обработать пришедшие данные
+    Serial.println("# " + nuidToStr(rfid.serNum));
+    Serial.println("# " + state.master);
+
+    String usrFile = findUser(nuidToStr(rfid.serNum), state.master);
+    if (usrFile == "") {
+      state.authState = FAILED;
+    } else {
+      state.authState = SUCCESS;
+      state.userFileName = usrFile;
+      state.lastNuidLogged = nuidToStr(rfid.serNum);
+      state.timeFromLastLogin = 0;
+    }
+  }
+
+  return state.authState;
+}
+
+// Создание пустого пользователя по мастеру и nuid
 void createUser(uint8_t* nuid, String* m) {
-  state.key = generateKey(nuid, m);
-  Serial.print("# "); dumpBufferHex(state.key, 32); Serial.println();
+  //state.key = generateKey(nuid, m);
+  /*Serial.print("# "); dumpBufferHex(state.key, 32); Serial.println();*/
 
   File f = openFile("cards.txt", FILE_WRITE);
   f.print(nuidToStr(nuid) + "\n");
   f.close();
+
+  Serial.println("# " + state.master);
+  Serial.println("# " + state.username);
+  Serial.println("# " + nuidToStr(nuid));
+
+  String fileName = getAvailableUser();
+  Serial.println("# writing to " + fileName);
+  f = openFile("usr/" + fileName, FILE_WRITE);
+  f.print(/*"hfile\n"*/nuidToStr(nuid) + "\n" + state.master + "\n" + state.username + "\nhservice\n");
+  f.close();
+  
   Serial.println("usercreated");
 
-  delete state.key;
+  //delete state.key;
 }
