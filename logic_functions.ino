@@ -94,6 +94,11 @@ void analyzeCommand(String command) {
     state.serviceAuthed = false;
   }
 
+  else if (command == "userlogin") {
+    initPutRFID();
+    state.userLogin = true;
+  }
+
   // Команда не опознана / не принимается системой в текущем состоянии
   else {
     Serial.println("# Command unknown / can't be accepted now");
@@ -216,6 +221,44 @@ void processState() {
         state.serviceAuthed = true;
         state.authState = STOPPED;
         state.serviceAddition = false;
+    }
+  }
+
+  if (state.userLogin) {
+    AuthState as = authorizeUser();
+    switch (as) {
+      case IN_PROGRESS:
+        break;
+      case FAILED:
+        /*Serial.println("masterincorrect");
+        state.authState = STOPPED;
+        askForMaster();*/
+        Serial.println("loginfail");
+        state.authState = STOPPED;
+        state.userLogin = false;
+        break;
+      case SUCCESS:
+        File f = openFile("usr/" + state.userFileName, FILE_READ);
+        String line;
+        // "Перемотка" на нужный участок
+        fileReadUntil(&f, '\n');
+        fileReadUntil(&f, '\n');
+        Serial.println("username " + fileReadUntil(&f, '\n'));
+        
+        do {
+          line = fileReadUntil(&f, '\n');
+        }
+        while (line != "hservice");
+
+        while (f.available()) {
+          String sname = fileReadUntil(&f, '\n');
+          Serial.println("service " + sname);
+          // Пропускаем пароли, они пока не нужны
+          fileReadUntil(&f, '\n');
+        }
+        f.close();
+        state.authState = STOPPED;
+        state.userLogin = false;
     }
   }
 

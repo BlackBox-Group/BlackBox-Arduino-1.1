@@ -119,6 +119,8 @@ struct State {
   String serviceName    = "";
   String servicePass    = "";
 
+  bool userLogin        = false;
+
   uint8_t* key          = NULL;
 
   unsigned long timeStamp_rfid = 0;
